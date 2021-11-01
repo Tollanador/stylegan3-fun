@@ -1,0 +1,14 @@
+numpy
+Pillow
+imageio
+imageio-ffmpeg
+pyspng
+scipy
+click
+requests
+tqdm
+matplotlib
+imgui
+glfw
+pyopengl
+torch  # torch==1.9.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
