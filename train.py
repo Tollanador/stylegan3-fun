@@ -10,6 +10,7 @@
 "Alias-Free Generative Adversarial Networks"."""
 
 import os
+import sys
 import click
 import re
 import json
@@ -21,6 +22,8 @@ from training import training_loop
 from metrics import metric_main
 from torch_utils import training_stats
 from torch_utils import custom_ops
+
+from common.env_stats import get_env_stats
 
 
 # ----------------------------------------------------------------------------
@@ -61,8 +64,17 @@ def subprocess_fn(rank, c, temp_dir, all_opts):
 # ----------------------------------------------------------------------------
 
 
-def launch_training(c, desc, outdir, dry_run):
+def launch_training(c, desc, outdir, dry_run, all_opts):
     dnnlib.util.Logger(should_flush=True)
+    
+    print()
+    print("Script command line:\n{}".format(" ".join(sys.argv)))
+    print("Script arguments:\n{}".format(all_opts))
+    print("Env_stats:\n{}".format(get_env_stats(
+        packages=["torch"],
+        pip_packages=["torch"])))
+    print("Training config:\n{}".format(c))
+    print()
 
     # Pick output directory.
     prev_run_dirs = []
@@ -340,7 +352,7 @@ def main(**kwargs):
         desc += f'-{opts.desc}'
 
     # Launch.
-    launch_training(c=c, desc=desc, outdir=opts.outdir, dry_run=opts.dry_run)
+    launch_training(c=c, desc=desc, outdir=opts.outdir, dry_run=opts.dry_run, all_opts=kwargs)
 
 
 # ----------------------------------------------------------------------------
