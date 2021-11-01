@@ -99,6 +99,7 @@ class FullyConnectedLayer(torch.nn.Module):
         activation      = 'linear', # Activation function: 'relu', 'lrelu', etc.
         lr_multiplier   = 1,        # Learning rate multiplier.
         bias_init       = 0,        # Initial value for the additive bias.
+        freeze_layers   = 0,        # Freeze-D: Number of layers to freeze.
     ):
         super().__init__()
         self.in_features = in_features
@@ -202,6 +203,8 @@ class MappingNetwork(torch.nn.Module):
         w_avg_beta      = 0.998,    # Decay for tracking the moving average of W during training, None = do not track.
     ):
         super().__init__()
+        assert (freeze_layers is not None)
+
         self.z_dim = z_dim
         self.c_dim = c_dim
         self.w_dim = w_dim
