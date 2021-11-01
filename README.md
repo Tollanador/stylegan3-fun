@@ -1,3 +1,9 @@
+Changes in this repo:
+
+Added OSMR's G-Freeze code
+https://github.com/osmr/stylegan3
+
+
 ## Alias-Free Generative Adversarial Networks (StyleGAN3)<br><sub>Official PyTorch implementation of the NeurIPS 2021 paper</sub>
 
 ![Teaser image](./docs/stylegan3-teaser-1920x1006.png)
