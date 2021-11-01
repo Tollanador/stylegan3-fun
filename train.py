@@ -26,7 +26,16 @@ from torch_utils import custom_ops
 # ----------------------------------------------------------------------------
 
 
-def subprocess_fn(rank, c, temp_dir):
+def subprocess_fn(rank, c, temp_dir, all_opts):
+    dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
+
+    print("Script command line:\n{}".format(" ".join(sys.argv)))
+    print("Script arguments:\n{}".format(json.dumps(all_opts, indent=2)))
+    print("Env_stats:\n{}".format(get_env_stats(
+        packages=["torch"],
+        pip_packages=["torch"])))
+    print("Training config:\n{}\n".format(json.dumps(c, indent=2)))
+
     dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
 
     # Init torch.distributed.
@@ -98,9 +107,9 @@ def launch_training(c, desc, outdir, dry_run):
     torch.multiprocessing.set_start_method('spawn')
     with tempfile.TemporaryDirectory() as temp_dir:
         if c.num_gpus == 1:
-            subprocess_fn(rank=0, c=c, temp_dir=temp_dir)
+            subprocess_fn(rank=0, c=c, temp_dir=temp_dir, all_opts=all_opts)
         else:
-            torch.multiprocessing.spawn(fn=subprocess_fn, args=(c, temp_dir), nprocs=c.num_gpus)
+            torch.multiprocessing.spawn(fn=subprocess_fn, args=(c, temp_dir, all_opts), nprocs=c.num_gpus)
 
 
 # ----------------------------------------------------------------------------
@@ -148,6 +157,7 @@ def parse_comma_separated_list(s):
 @click.option('--augpipe',      help='Augmentation pipeline [default: bgc]',                    type=click.Choice(['blit', 'geom', 'color', 'filter', 'noise', 'cutout', 'bg', 'bgc', 'bgcf', 'bgcfn', 'bgcfnc']))
 @click.option('--resume',       help='Resume from given network pickle', metavar='[PATH|URL]',  type=str)
 @click.option('--freezed',      help='Freeze first layers of D', metavar='INT',                 type=click.IntRange(min=0), default=0, show_default=True)
+@click.option('--gm-freezed',      help='Freeze first layers of G.mapping', metavar='INT',      type=click.IntRange(min=0), default=0, show_default=True)
 # Misc hyperparameters.
 @click.option('--p',            help='Probability for --aug=fixed', metavar='FLOAT',            type=click.FloatRange(min=0, max=1), default=0.2, show_default=True)
 @click.option('--target',       help='Target value for --aug=ada', metavar='FLOAT',             type=click.FloatRange(min=0, max=1), default=0.6, show_default=True)
@@ -217,6 +227,7 @@ def main(**kwargs):
     c.G_kwargs.channel_base = c.D_kwargs.channel_base = opts.cbase
     c.G_kwargs.channel_max = c.D_kwargs.channel_max = opts.cmax
     c.G_kwargs.mapping_kwargs.num_layers = (8 if opts.cfg == 'stylegan2' else 2) if opts.map_depth is None else opts.map_depth
+    c.G_kwargs.mapping_kwargs.freeze_layers = opts.gm_freezed
     c.D_kwargs.block_kwargs.freeze_layers = opts.freezed
     c.D_kwargs.epilogue_kwargs.mbstd_group_size = opts.mbstd_group
     c.loss_kwargs.r1_gamma = opts.gamma
