@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 from torch.autograd import Variable
 from torchvision import transforms
 
@@ -11,27 +10,18 @@ try:
 except ImportError:
     raise ImportError('ffmpeg-python not found! Install it via "pip install ffmpeg-python"')
 
-try:
-    import skvideo.io
-except ImportError:
-    raise ImportError('scikit-video not found! Install it via "pip install scikit-video"')
-
 import scipy.ndimage as nd
 import numpy as np
 
 import os
 import click
 from typing import Union, Tuple, Optional, List
-from collections import OrderedDict
 from tqdm import tqdm
 
 from torch_utils import gen_utils
 import dnnlib
 import legacy
-from network_features import VGG16FeaturesNVIDIA, DiscriminatorFeatures
-
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'hide'
-import moviepy.editor
+from network_features import DiscriminatorFeatures
 
 
 # ----------------------------------------------------------------------------
@@ -59,25 +49,11 @@ def get_available_layers(max_resolution: int) -> List[str]:
     return available_layers
 
 
-def parse_layers(s: str) -> List[str]:
-    """Helper function for parsing a string of comma-separated layers and returning a list of the individual layers"""
-    str_list = s.split(',')
-
-    # Get all the possible layers up to resolution 1024
-    all_available_layers = get_available_layers(max_resolution=1024)
-
-    for layer in str_list:
-        message = f'{layer} is not a possible layer! Available layers: {all_available_layers}'
-        # We also let the user choose all the layers
-        assert layer in all_available_layers or layer == 'all', message
-
-    return str_list
-
-
 # ----------------------------------------------------------------------------
 # DeepDream code; modified from Erik Linder-Norén's repository: https://github.com/eriklindernoren/PyTorch-Deep-Dream
 
 def get_image(seed: int = 0,
+              image_noise: str = 'random',
               starting_image: Union[str, os.PathLike] = None,
               image_size: int = 1024) -> Tuple[PIL.Image.Image, str]:
     """Set the random seed (NumPy + PyTorch), as well as get an image from a path or generate a random one with the seed"""
@@ -88,8 +64,24 @@ def get_image(seed: int = 0,
     if starting_image is not None:
         image = Image.open(starting_image).convert('RGB').resize((image_size, image_size), Image.LANCZOS)
     else:
-        starting_image = f'random_image-seed_{seed}.jpg'
-        image = Image.fromarray(rnd.randint(0, 255, (image_size, image_size, 3), dtype='uint8'))
+        if image_noise == 'random':
+            starting_image = f'random_image-seed_{seed}.jpg'
+            image = Image.fromarray(rnd.randint(0, 255, (image_size, image_size, 3), dtype='uint8'))
+        elif image_noise == 'perlin':
+            try:
+                # Graciously using Mathieu Duchesneau's implementation: https://github.com/duchesneaumathieu/pyperlin
+                from pyperlin import FractalPerlin2D
+                starting_image = f'perlin_image-seed_{seed}.jpg'
+                shape = (3, image_size, image_size)
+                resolutions = [(2**i, 2**i) for i in range(1, 6+1)]  # for lacunarity = 2.0  # TODO: set as cli variable
+                factors = [0.5**i for i in range(6)]  # for persistence = 0.5 TODO: set as cli variables
+                g_cuda = torch.Generator(device='cuda').manual_seed(seed)
+                rgb = FractalPerlin2D(shape, resolutions, factors, generator=g_cuda)().cpu().numpy()
+                rgb = (255 * (rgb + 1) / 2).astype(np.uint8)  # [-1.0, 1.0] => [0, 255]
+                image = Image.fromarray(np.stack(rgb, axis=2), 'RGB')
+
+            except ImportError:
+                raise ImportError('pyperlin not found! Install it via "pip install pyperlin"')
 
     return image, starting_image
 
@@ -232,12 +224,13 @@ def style_transfer_discriminator():
 @click.option('--network', 'network_pkl', help='Network pickle filename', required=True)
 # Synthesis options
 @click.option('--seed', type=int, help='Random seed to use', default=0)
+@click.option('--random-image-noise', '-noise', 'image_noise', type=click.Choice(['random', 'perlin']), default='random', show_default=True)
 @click.option('--starting-image', type=str, help='Path to image to start from', default=None)
 @click.option('--class', 'class_idx', type=int, help='Class label (unconditional if not specified)', default=None)
 @click.option('--lr', 'learning_rate', type=float, help='Learning rate', default=1e-2, show_default=True)
 @click.option('--iterations', '-it', type=int, help='Number of gradient ascent steps per octave', default=20, show_default=True)
 # Layer options
-@click.option('--layers', type=parse_layers, help='Layers of the Discriminator to use as the features. If "all", will generate a dream image per available layer in the loaded model', default=['b16_conv1'], show_default=True)
+@click.option('--layers', type=str, help='Layers of the Discriminator to use as the features. If "all", will generate a dream image per available layer in the loaded model. If "use_all", will use all available layers.', default='b16_conv1', show_default=True)
 @click.option('--normed', 'norm_model_layers', is_flag=True, help='Add flag to divide the features of each layer of D by its number of elements')
 @click.option('--sqrt-normed', 'sqrt_norm_model_layers', is_flag=True, help='Add flag to divide the features of each layer of D by the square root of its number of elements')
 # Octaves options
@@ -251,11 +244,12 @@ def discriminator_dream(
         ctx: click.Context,
         network_pkl: Union[str, os.PathLike],
         seed: int,
+        image_noise: str,
         starting_image: Union[str, os.PathLike],
         class_idx: Optional[int],  # TODO: conditional model
         learning_rate: float,
         iterations: int,
-        layers: List[str],
+        layers: str,
         norm_model_layers: bool,
         sqrt_norm_model_layers: bool,
         num_octaves: int,
@@ -273,15 +267,19 @@ def discriminator_dream(
     # Get the model resolution (image resizing and getting available layers)
     model_resolution = D.img_resolution
 
+    # TODO: do this better, as wec can combine these conditions later
+    layers = layers.split(',')
+
     # We will use the features of the Discriminator, on the layer specified by the user
     model = DiscriminatorFeatures(D).requires_grad_(False).to(device)
 
     if 'all' in layers:
         # Get all the available layers in a list
-        available_layers = get_available_layers(max_resolution=model.get_block_resolutions()[0])
+        layers = get_available_layers(max_resolution=model_resolution)
 
         # Get the image and image name
-        image, starting_image = get_image(seed=seed, starting_image=starting_image, image_size=model_resolution)
+        image, starting_image = get_image(seed=seed, image_noise=image_noise,
+                                          starting_image=starting_image, image_size=model_resolution)
 
         # Make the run dir in the specified output directory
         desc = 'discriminator-dream-all_layers'
@@ -296,13 +294,14 @@ def discriminator_dream(
             'network_pkl': network_pkl,
             'synthesis_options': {
                 'seed': seed,
+                'random_image_noise': image_noise,
                 'starting_image': starting_image,
                 'class_idx': class_idx,
                 'learning_rate': learning_rate,
                 'iterations': iterations
             },
             'layer_options': {
-                'layer': available_layers,
+                'layer': layers,
                 'norm_model_layers': norm_model_layers,
                 'sqrt_norm_model_layers': sqrt_norm_model_layers
             },
@@ -320,19 +319,27 @@ def discriminator_dream(
         gen_utils.save_config(ctx=ctx, run_dir=run_dir)
 
         # For each layer:
-        for av_layer in available_layers:
+        for layer in layers:
             # Extract deep dream image
-            dreamed_image = deep_dream(image, model, model_resolution, layers=[av_layer], normed=norm_model_layers,
+            dreamed_image = deep_dream(image, model, model_resolution, layers=[layer], normed=norm_model_layers,
                                        sqrt_normed=sqrt_norm_model_layers, iterations=iterations, lr=learning_rate,
                                        octave_scale=octave_scale, num_octaves=num_octaves, unzoom_octave=unzoom_octave)
 
             # Save the resulting dreamed image
-            filename = f'layer-{av_layer}_dreamed_{os.path.basename(starting_image).split(".")[0]}.jpg'
+            filename = f'layer-{layer}_dreamed_{os.path.basename(starting_image).split(".")[0]}.jpg'
             Image.fromarray(dreamed_image, 'RGB').save(os.path.join(run_dir, filename))
 
     else:
+        if 'use_all' in layers:
+            # Get all available layers
+            layers = get_available_layers(max_resolution=model_resolution)
+        else:
+            # Parse the layers given by the user and leave only those available by the model
+            available_layers = get_available_layers(max_resolution=model_resolution)
+            layers = [layer for layer in layers if layer in available_layers]
         # Get the image and image name
-        image, starting_image = get_image(seed=seed, starting_image=starting_image, image_size=model_resolution)
+        image, starting_image = get_image(seed=seed, image_noise=image_noise,
+                                          starting_image=starting_image, image_size=model_resolution)
 
         # Extract deep dream image
         dreamed_image = deep_dream(image, model, model_resolution, layers=layers, normed=norm_model_layers,
@@ -378,12 +385,13 @@ def discriminator_dream(
 @click.option('--network', 'network_pkl', help='Network pickle filename', required=True)
 # Synthesis options
 @click.option('--seed', type=int, help='Random seed to use', default=0, show_default=True)
+@click.option('--random-image-noise', '-noise', 'image_noise', type=click.Choice(['random', 'perlin']), default='random', show_default=True)
 @click.option('--starting-image', type=str, help='Path to image to start from', default=None)
 @click.option('--class', 'class_idx', type=int, help='Class label (unconditional if not specified)', default=None)
 @click.option('--lr', 'learning_rate', type=float, help='Learning rate', default=5e-3, show_default=True)
 @click.option('--iterations', '-it', type=click.IntRange(min=1), help='Number of gradient ascent steps per octave', default=10, show_default=True)
 # Layer options
-@click.option('--layers', type=parse_layers, help='Layers of the Discriminator to use as the features. If None, will default to the output of D.', default=['b16_conv1'], show_default=True)
+@click.option('--layers', type=str, help='Comma-separated list of the layers of the Discriminator to use as the features. If "use_all", will use all available layers.', default='b16_conv0', show_default=True)
 @click.option('--normed', 'norm_model_layers', is_flag=True, help='Add flag to divide the features of each layer of D by its number of elements')
 @click.option('--sqrt-normed', 'sqrt_norm_model_layers', is_flag=True, help='Add flag to divide the features of each layer of D by the square root of its number of elements')
 # Octaves options
@@ -391,7 +399,7 @@ def discriminator_dream(
 @click.option('--octave-scale', type=float, help='Image scale between octaves', default=1.4, show_default=True)
 @click.option('--unzoom-octave', type=bool, help='Set to True for the octaves to be unzoomed (this will be slower)', default=False, show_default=True)
 # Individual frame manipulation options
-@click.option('--pixel-zoom', type=int, help='How many pixels to zoom per step (positive for zoom in, negative for zoom out, padded with black)', default=2, show_default=True)
+@click.option('--pixel-zoom', '-zoom', type=int, help='How many pixels to zoom per step (positive for zoom in, negative for zoom out, padded with black)', default=2, show_default=True)
 @click.option('--rotation-deg', '-rot', type=float, help='Rotate image counter-clockwise per frame (padded with black)', default=0.0, show_default=True)
 @click.option('--translate-x', '-tx', type=float, help='Translate the image in the horizontal axis per frame (from left to right, padded with black)', default=0.0, show_default=True)
 @click.option('--translate-y', '-ty', type=float, help='Translate the image in the vertical axis per frame (from top to bottom, padded with black)', default=0.0, show_default=True)
@@ -407,16 +415,17 @@ def discriminator_dream_zoom(
         ctx: click.Context,
         network_pkl: Union[str, os.PathLike],
         seed: int,
-        starting_image: Union[str, os.PathLike],
+        image_noise: Optional[str],
+        starting_image: Optional[Union[str, os.PathLike]],
         class_idx: Optional[int],  # TODO: conditional model
         learning_rate: float,
         iterations: int,
-        layers: List[str],
-        norm_model_layers: bool,
-        sqrt_norm_model_layers: bool,
+        layers: str,
+        norm_model_layers: Optional[bool],
+        sqrt_norm_model_layers: Optional[bool],
         num_octaves: int,
         octave_scale: float,
-        unzoom_octave: bool,
+        unzoom_octave: Optional[bool],
         pixel_zoom: int,
         rotation_deg: float,
         translate_x: int,
@@ -438,11 +447,21 @@ def discriminator_dream_zoom(
     model_resolution = D.img_resolution
     zoom_size = model_resolution - 2 * pixel_zoom
 
+    layers = layers.split(',')
+    if 'use_all' in layers:
+        # Get all available layers
+        layers = get_available_layers(max_resolution=model_resolution)
+    else:
+        # Parse the layers given by the user and leave only those available by the model
+        available_layers = get_available_layers(max_resolution=model_resolution)
+        layers = [layer for layer in layers if layer in available_layers]
+
     # We will use the features of the Discriminator, on the layer specified by the user
     model = DiscriminatorFeatures(D).requires_grad_(False).to(device)
 
     # Get the image and image name
-    image, starting_image = get_image(seed=seed, starting_image=starting_image, image_size=model_resolution)
+    image, starting_image = get_image(seed=seed, image_noise=image_noise,
+                                      starting_image=starting_image, image_size=model_resolution)
 
     # Make the run dir in the specified output directory
     desc = 'discriminator-dream-zoom'
@@ -454,6 +473,7 @@ def discriminator_dream_zoom(
         'network_pkl': network_pkl,
         'synthesis_options': {
             'seed': seed,
+            'random_image_noise': image_noise,
             'starting_image': starting_image,
             'class_idx': class_idx,
             'learning_rate': learning_rate,
@@ -516,12 +536,15 @@ def discriminator_dream_zoom(
 
     # Save the final video
     print('Saving video...')
-    stream = ffmpeg.input(os.path.join(run_dir, 'dreamed_*.jpg'), pattern_type='glob', framerate=fps)
+    if os.name == 'nt':  # No glob pattern for Windows
+        stream = ffmpeg.input(os.path.join(run_dir, f'dreamed_%0{n_digits}d.jpg'), framerate=fps)
+    else:
+        stream = ffmpeg.input(os.path.join(run_dir, 'dreamed_*.jpg'), pattern_type='glob', framerate=fps)
     stream = ffmpeg.output(stream, os.path.join(run_dir, 'dream-zoom.mp4'), crf=20, pix_fmt='yuv420p')
     ffmpeg.run(stream, capture_stdout=True, capture_stderr=True)  # I dislike ffmpeg's console logs, so I turn them off
 
+    # Save the reversed video apart from the original one, so the user can compare both
     if reverse_video:
-        # Save the reversed video apart from the original one, so the user can compare both
         stream = ffmpeg.input(os.path.join(run_dir, 'dream-zoom.mp4'))
         stream = stream.video.filter('reverse')
         stream = ffmpeg.output(stream, os.path.join(run_dir, 'dream-zoom_reversed.mp4'), crf=20, pix_fmt='yuv420p')
