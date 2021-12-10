@@ -68,7 +68,7 @@ def subprocess_fn(rank, c, temp_dir, all_opts):
 
     # Init torch.distributed.
     #if c.num_gpus > 1:
-    if tpu==None and c.num_gpus > 1:
+    if use_tpu==None and c.num_gpus > 1:
         init_file = os.path.abspath(os.path.join(temp_dir, '.torch_distributed_init'))
     if os.name == 'nt':
             init_method = 'file:///' + init_file.replace('\\', '/')
@@ -82,7 +82,7 @@ def subprocess_fn(rank, c, temp_dir, all_opts):
     # Init torch_utils.
     #sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
     #training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
-    if tpu == None:
+    if use_tpu == None:
         sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
         training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
     else:
