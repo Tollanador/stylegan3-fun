@@ -73,7 +73,7 @@ def subprocess_fn(rank, c, temp_dir, all_opts):
     	if os.name == 'nt':
             init_method = 'file:///' + init_file.replace('\\', '/')
             torch.distributed.init_process_group(backend='gloo', init_method=init_method, rank=rank, world_size=c.num_gpus)
-   	 else:
+   	else:
             init_method = f'file://{init_file}'
             #torch.distributed.init_process_group(backend='nccl', init_method=init_method, rank=rank, world_size=c.num_gpus)
             torch.distributed.init_process_group(backend='nccl' if use_tpu == None else 'xla-tpu', init_method=init_method, rank=rank, world_size=c.num_gpus)
