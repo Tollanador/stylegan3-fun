@@ -42,10 +42,10 @@ from torch_utils import training_stats
 from torch_utils import custom_ops
 
 # Detect TPU hardware
-try:
-	tpu = tf.distribute.cluster_resolver.TPUClusterResolver() # TPU detection
-except ValueError: # If TPU not found
-	tpu = None
+#try:
+#	tpu = tf.distribute.cluster_resolver.TPUClusterResolver() # TPU detection
+#except ValueError: # If TPU not found
+#	tpu = None
 
     
 from common.env_stats import get_env_stats
