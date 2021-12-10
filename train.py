@@ -83,10 +83,10 @@ def subprocess_fn(rank, c, temp_dir, all_opts):
     #sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
     #training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
     if tpu == None:
-    	sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
+	sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
 	training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
     else:
-    	sync_device = None #xm.xla_device()
+	sync_device = None #xm.xla_device()
 
     
     if rank != 0:
