@@ -22,9 +22,17 @@ use_tpu = 'COLAB_TPU_ADDR' in os.environ.keys()
 
 if use_tpu:
 	# imports the torch_xla package
+	import tensorflow as tf
 	import torch_xla
 	import torch_xla.core.xla_model as xm
+	import torch_xla.debug.metrics as met
+	import torch_xla.distributed.parallel_loader as pl
+	import torch_xla.utils.utils as xu
 	import torch_xla.distributed.xla_multiprocessing as xmp
+	import torch_xla.test.test_utils as test_utils
+	import torch.nn as nn
+	import torch.multiprocessing as mp
+	import torch.distributed as dist
 
 
 import dnnlib
@@ -59,7 +67,8 @@ def subprocess_fn(rank, c, temp_dir, all_opts):
     dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
 
     # Init torch.distributed.
-    if c.num_gpus > 1:
+    #if c.num_gpus > 1:
+    if tpu==None and c.num_gpus > 1:
         init_file = os.path.abspath(os.path.join(temp_dir, '.torch_distributed_init'))
         if os.name == 'nt':
             init_method = 'file:///' + init_file.replace('\\', '/')
@@ -75,7 +84,7 @@ def subprocess_fn(rank, c, temp_dir, all_opts):
     #training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
     if tpu == None:
     	sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
-			training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
+	training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
     else:
     	sync_device = None #xm.xla_device()
 
