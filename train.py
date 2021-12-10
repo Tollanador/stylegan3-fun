@@ -43,9 +43,9 @@ from torch_utils import custom_ops
 
 # Detect TPU hardware
 try:
-    tpu = tf.distribute.cluster_resolver.TPUClusterResolver() # TPU detection
+	tpu = tf.distribute.cluster_resolver.TPUClusterResolver() # TPU detection
 except ValueError: # If TPU not found
-    tpu = None
+	tpu = None
 
     
 from common.env_stats import get_env_stats
@@ -70,23 +70,23 @@ def subprocess_fn(rank, c, temp_dir, all_opts):
     #if c.num_gpus > 1:
     if tpu==None and c.num_gpus > 1:
         init_file = os.path.abspath(os.path.join(temp_dir, '.torch_distributed_init'))
-        if os.name == 'nt':
+    if os.name == 'nt':
             init_method = 'file:///' + init_file.replace('\\', '/')
             torch.distributed.init_process_group(backend='gloo', init_method=init_method, rank=rank, world_size=c.num_gpus)
-        else:
+    else:
             init_method = f'file://{init_file}'
             #torch.distributed.init_process_group(backend='nccl', init_method=init_method, rank=rank, world_size=c.num_gpus)
             torch.distributed.init_process_group(backend='nccl' if use_tpu == None else 'xla-tpu', init_method=init_method, rank=rank, world_size=c.num_gpus)
 
-            
+        
     # Init torch_utils.
     #sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
     #training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
     if tpu == None:
-	sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
-	training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
+        sync_device = torch.device('cuda', rank) if c.num_gpus > 1 else None
+        training_stats.init_multiprocessing(rank=rank, sync_device=sync_device)
     else:
-	sync_device = None #xm.xla_device()
+        sync_device = None #xm.xla_device()
 
     
     if rank != 0:
