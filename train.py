@@ -63,7 +63,7 @@ def subprocess_fn(rank, c, temp_dir):
     dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
 
     print("Script command line:\n{}".format(" ".join(sys.argv)))
-    print("Script arguments:\n{}".format(json.dumps(all_opts, indent=2)))
+    print("Script arguments:\n{}".format(json.dumps(indent=2)))
     print("Env_stats:\n{}".format(get_env_stats(
         packages=["torch"],
         pip_packages=["torch"])))
@@ -103,12 +103,12 @@ def subprocess_fn(rank, c, temp_dir):
 # ----------------------------------------------------------------------------
 
 
-def launch_training(c, desc, outdir, dry_run, all_opts):
+def launch_training(c, desc, outdir, dry_run):
     dnnlib.util.Logger(should_flush=True)
     
     print()
     print("Script command line:\n{}".format(" ".join(sys.argv)))
-    print("Script arguments:\n{}".format(all_opts))
+    print("Script arguments:\n{}".format())
     print("Env_stats:\n{}".format(get_env_stats(
         packages=["torch"],
         pip_packages=["torch"])))
@@ -162,9 +162,9 @@ def launch_training(c, desc, outdir, dry_run, all_opts):
         if use_tpu:
             xmp.spawn(subprocess_fn, args=(c, temp_dir), nprocs=c.num_gpus, start_method='fork')
         elif c.num_gpus == 1:
-            subprocess_fn(rank=0, c=c, temp_dir=temp_dir, all_opts=all_opts)
+            subprocess_fn(rank=0, c=c, temp_dir=temp_dir)
         else:
-            torch.multiprocessing.spawn(fn=subprocess_fn, args=(c, temp_dir, all_opts), nprocs=c.num_gpus)
+            torch.multiprocessing.spawn(fn=subprocess_fn, args=(c, temp_dir), nprocs=c.num_gpus)
 
 
 # ----------------------------------------------------------------------------
@@ -435,7 +435,7 @@ def main(**kwargs):
         desc += f'-{opts.desc}'
 
     # Launch.
-    launch_training(c=c, desc=desc, outdir=opts.outdir, dry_run=opts.dry_run, all_opts=kwargs)
+    launch_training(c=c, desc=desc, outdir=opts.outdir, dry_run=opts.dry_run)
 
 
 # ----------------------------------------------------------------------------
