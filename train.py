@@ -18,7 +18,12 @@ import tempfile
 import torch
 
 import os
-use_tpu = 'COLAB_TPU_ADDR' in os.environ.keys()
+if 'TPU_NAME' in os.environ.keys():
+	use_tpu = True
+elif 'COLAB_TPU_ADDR' in os.environ.keys():
+	use_tpu = True
+else:
+	use_tpu = False
 
 if use_tpu:
 	# imports the torch_xla package
