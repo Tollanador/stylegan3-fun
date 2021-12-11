@@ -44,7 +44,7 @@ from metrics import metric_main
 #----------------------------------------------------------------------------
 
 def setup_snapshot_image_grid(training_set,  snap_res='8k', random_seed=0):
-    size_dict = {'1080p': (1920, 1080, 3, 2), '4k': (3840, 2160, 7, 4), '8k': (7680, 4320, 7, 4)}
+    size_dict = {'qHD' : (960, 540, 3, 2), '1080p': (1920, 1080, 3, 2), '4k': (3840, 2160, 7, 4), '8k': (7680, 4320, 7, 4)}
     rnd = np.random.RandomState(random_seed)
     gw = np.clip(size_dict[snap_res][0] // training_set.image_shape[1], size_dict[snap_res][2], 32)
     gh = np.clip(size_dict[snap_res][1] // training_set.image_shape[1], size_dict[snap_res][3], 32)
