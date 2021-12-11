@@ -10,7 +10,7 @@ capabilities (but hopefully not its complexity!).
 
 This repository adds the following (not yet the complete list):
 
-* TPU support for Kaggle and Colab, code taken from https://github.com/un1tz3r0/stylegan3
+* TPU support for ~~Kaggle, wishful thinking~~ and Colab, code taken from https://github.com/un1tz3r0/stylegan3
 
 * Dataset tool
   * Add `--center-crop-tall`: add vertical black bars to the sides instead, in the same vein as the horizontal bars in
