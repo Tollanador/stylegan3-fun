@@ -59,7 +59,7 @@ from common.env_stats import get_env_stats
 # ----------------------------------------------------------------------------
 
 
-def subprocess_fn(rank, c, temp_dir, all_opts):
+def subprocess_fn(rank, c, temp_dir):
     dnnlib.util.Logger(file_name=os.path.join(c.run_dir, 'log.txt'), file_mode='a', should_flush=True)
 
     print("Script command line:\n{}".format(" ".join(sys.argv)))
