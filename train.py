@@ -108,7 +108,7 @@ def launch_training(c, desc, outdir, dry_run):
     
     print()
     print("Script command line:\n{}".format(" ".join(sys.argv)))
-    print("Script arguments:\n{}".format())
+    #print("Script arguments:\n{}".format())
     print("Env_stats:\n{}".format(get_env_stats(
         packages=["torch"],
         pip_packages=["torch"])))
