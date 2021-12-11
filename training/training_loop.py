@@ -21,7 +21,12 @@ import dnnlib
 
 # check for tpu presence
 import os
-use_tpu = 'COLAB_TPU_ADDR' in os.environ.keys()
+if 'TPU_NAME' in os.environ.keys():
+	use_tpu = True
+elif 'COLAB_TPU_ADDR' in os.environ.keys():
+	use_tpu = True
+else:
+	use_tpu = False
 
 if use_tpu:
     # imports the torch_xla package
@@ -146,11 +151,12 @@ def training_loop(
 		    torch.backends.cudnn.benchmark = cudnn_benchmark    # Improves training speed.
 		    torch.backends.cuda.matmul.allow_tf32 = False       # Improves numerical accuracy.
 		    torch.backends.cudnn.allow_tf32 = False             # Improves numerical accuracy.
-		    conv2d_gradfix.enabled = True
+		    
     #torch.backends.cudnn.benchmark = cudnn_benchmark    # Improves training speed.
     #torch.backends.cuda.matmul.allow_tf32 = False       # Improves numerical accuracy.
     #torch.backends.cudnn.allow_tf32 = False             # Improves numerical accuracy.
                            # Improves training speed.
+    conv2d_gradfix.enabled = True
     grid_sample_gradfix.enabled = True                  # Avoids errors with the augmentation pipe.
 
     # Load training set.
