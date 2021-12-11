@@ -146,10 +146,11 @@ def training_loop(
 		    torch.backends.cudnn.benchmark = cudnn_benchmark    # Improves training speed.
 		    torch.backends.cuda.matmul.allow_tf32 = False       # Improves numerical accuracy.
 		    torch.backends.cudnn.allow_tf32 = False             # Improves numerical accuracy.
+		    conv2d_gradfix.enabled = True
     #torch.backends.cudnn.benchmark = cudnn_benchmark    # Improves training speed.
     #torch.backends.cuda.matmul.allow_tf32 = False       # Improves numerical accuracy.
     #torch.backends.cudnn.allow_tf32 = False             # Improves numerical accuracy.
-    conv2d_gradfix.enabled = True                       # Improves training speed.
+                           # Improves training speed.
     grid_sample_gradfix.enabled = True                  # Avoids errors with the augmentation pipe.
 
     # Load training set.
