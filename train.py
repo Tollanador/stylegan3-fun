@@ -207,7 +207,7 @@ def parse_comma_separated_list(s):
 @click.option('--mirror',       help='Enable dataset x-flips', metavar='BOOL',                  type=bool, default=False, show_default=True)
 @click.option('--mirror-y',     help='Enable dataset y-flips', metavar='BOOL',                  type=bool, default=False, show_default=True)
 @click.option('--aug',          help='Augmentation mode',                                       type=click.Choice(['noaug', 'ada', 'fixed']), default='ada', show_default=True)
-@click.option('--augpipe',      help='Augmentation pipeline [default: bgc]',                    type=click.Choice(['blit', 'geom', 'color', 'filter', 'noise', 'cutout', 'bg', 'bgc', 'bgcf', 'bgcfn', 'bgcfnc', 'bcfc', 'bc']))
+@click.option('--augpipe',      help='Augmentation pipeline [default: bgc]',                    type=click.Choice(['blit', 'geom', 'color', 'filter', 'noise', 'cutout', 'bg', 'bgc', 'bgcf', 'bgcfn', 'bgcfnc', 'bcfc', 'bc', 'custom']))
 @click.option('--resume',       help='Resume from given network pickle', metavar='[PATH|URL]',  type=str)
 @click.option('--freezed',      help='Freeze first layers of D', metavar='INT',                 type=click.IntRange(min=0), default=0, show_default=True)
 @click.option('--gm-freezed',      help='Freeze first layers of G.mapping', metavar='INT',      type=click.IntRange(min=0), default=0, show_default=True)
@@ -353,7 +353,8 @@ def main(**kwargs):
         'bgcfn': dict(xflip=1, rotate90=1, xint=1, scale=1, rotate=1, aniso=1, xfrac=1, brightness=1, contrast=1, lumaflip=1, hue=1, saturation=1, imgfilter=1, noise=1),
         'bgcfnc': dict(xflip=1, rotate90=1, xint=1, scale=1, rotate=1, aniso=1, xfrac=1, brightness=1, contrast=1, lumaflip=1, hue=1, saturation=1, imgfilter=1, noise=1, cutout=1),
 	'bcfc': dict(xflip=1, brightness=1, contrast=1, lumaflip=1, hue=1, saturation=1, imgfilter=1, cutout=1),
-	'bc': dict(xflip=1, brightness=1, contrast=1, lumaflip=1, hue=1, saturation=1)
+	'bc': dict(xflip=1, brightness=1, contrast=1, lumaflip=1, hue=1, saturation=1),
+	'custom' : dict(xflip=1, scale=1, cutout=1)
     }
 
     if opts.aug != 'noaug':
